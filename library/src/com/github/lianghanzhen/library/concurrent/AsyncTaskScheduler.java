@@ -10,6 +10,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 
+/**
+ * An {@link AsyncTask} scheduler that can schedule {@link AsyncTask} to do its long-term work
+ * in an {@link ExecutorService}.
+ * @param <T> {@link AsyncTask}
+ * @param <P> the params that {@link AsyncTask} needs
+ * @param <R> the result that {@link AsyncTask} return
+ */
 public class AsyncTaskScheduler<T extends AsyncTask<P, R>, P, R> {
 
     private static final int DEFAULT_CONCURRENTS = 2;
@@ -19,8 +26,8 @@ public class AsyncTaskScheduler<T extends AsyncTask<P, R>, P, R> {
     private static final int WHAT_ERROR = 2;
 
     private final T mAsyncTask;
-    private final List<P> mRunningTasks;
-    private final List<P> mWaitingTasks;
+    private final List<P> mRunningAsyncTasks;
+    private final List<P> mWaitingAsyncTasks;
 
     private final ExecutorService mExecutorService;
     private final int mConcurrents;
@@ -34,8 +41,8 @@ public class AsyncTaskScheduler<T extends AsyncTask<P, R>, P, R> {
 
     public AsyncTaskScheduler(T asyncTask, int concurrents, final int threadPriority) {
         mAsyncTask = asyncTask;
-        mRunningTasks = new ArrayList<P>();
-        mWaitingTasks = new ArrayList<P>();
+        mRunningAsyncTasks = new ArrayList<P>();
+        mWaitingAsyncTasks = new ArrayList<P>();
 
         mConcurrents = concurrents;
         mExecutorService = Executors.newFixedThreadPool(mConcurrents, new ThreadFactory() {
@@ -51,23 +58,31 @@ public class AsyncTaskScheduler<T extends AsyncTask<P, R>, P, R> {
         mAsyncTaskListeners = new ArrayList<AsyncTaskListener<P, R>>();
     }
 
+    /**
+     * add an {@link AsyncTask} to be scheduled
+     * @param params the params that {@link AsyncTask} needs
+     */
     public void addAsyncTask(P params) {
-        if (mRunningTasks.contains(params) || mWaitingTasks.contains(params))
+        if (mRunningAsyncTasks.contains(params) || mWaitingAsyncTasks.contains(params))
             return;
 
-        if (mRunningTasks.size() < mConcurrents) {
+        if (mRunningAsyncTasks.size() < mConcurrents) {
             startRunAsyncTask(params);
         } else {
-            mWaitingTasks.add(params);
+            mWaitingAsyncTasks.add(params);
         }
     }
 
+    /**
+     * remove a waiting {@link AsyncTask} from waiting {@link AsyncTask} list
+     * @param params the params that being removed
+     */
     public void removeWaitingTask(P params) {
-        mWaitingTasks.remove(params);
+        mWaitingAsyncTasks.remove(params);
     }
 
     private void onAsyncTaskFinished(P params, R result) {
-        mRunningTasks.remove(params);
+        mRunningAsyncTasks.remove(params);
         for (AsyncTaskListener listener : mAsyncTaskListeners) {
             listener.onAsyncTaskFinished(params, result);
         }
@@ -75,7 +90,7 @@ public class AsyncTaskScheduler<T extends AsyncTask<P, R>, P, R> {
     }
 
     private void onAsyncTaskError(P params, Throwable throwable) {
-        mRunningTasks.remove(params);
+        mRunningAsyncTasks.remove(params);
         for (AsyncTaskListener listener : mAsyncTaskListeners) {
             listener.onAsyncTaskError(params, throwable);
         }
@@ -83,15 +98,15 @@ public class AsyncTaskScheduler<T extends AsyncTask<P, R>, P, R> {
     }
 
     private void scheduleNextAsyncTask() {
-        int waitingSize = mWaitingTasks.size();
-        int runningSize = mRunningTasks.size();
+        int waitingSize = mWaitingAsyncTasks.size();
+        int runningSize = mRunningAsyncTasks.size();
         while (waitingSize > 0 && runningSize < mConcurrents) {
-            startRunAsyncTask(mWaitingTasks.remove(0));
+            startRunAsyncTask(mWaitingAsyncTasks.remove(0));
         }
     }
 
     private void startRunAsyncTask(P params) {
-        mRunningTasks.add(params);
+        mRunningAsyncTasks.add(params);
         mExecutorService.execute(new InternalTask<T, P, R>(mInternalHandler, mAsyncTask, params));
     }
 
